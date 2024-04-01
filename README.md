@@ -12,6 +12,9 @@ Github:
 
 # Contribute to Compatibility:
 To extend stacking functionality to other mods, add this mod and the target mod as dependencies. Then, use the provided API functions to enable stacking for the desired items or groups.
+
 StackedItemsAPI.MakeItemGroupStackable(data.ItemPrototype item)         Activate stacking for item groups, corresponding to crafting menu tabs.
+
 StackedItemsAPI.MakeItemSubgroupStackable(data.ItemSubGroupID subgroup) Enable stacking for subgroups rows within the tabs.
+
 StackedItemsAPI.MakeItemStackable(data.ItemGroupID group)               Apply stacking to individual items.
