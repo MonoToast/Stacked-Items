@@ -4,7 +4,7 @@ Stacking Mod for Factorio
 This mod allows you to set two loaders facing each other to stack items efficiently, optimizing space on belts by 4x. Initially compatible with AAI Loaders, with plans for integration with other loader mods.
 
 # Compatibility Mod(s):
-Space Exploration: [Insert URL]
+Space Exploration: https://mods.factorio.com/mod/se-stacked-items
 
 # Testing and Feedback:
 This mod is in the testing phase, and your feedback is invaluable. Please report any bugs or suggest improvements via our GitHub page. Your input will help enhance the mod for everyone.
