@@ -1,16 +1,13 @@
+local StackedSuffix = "-stacked"
+
 local function IsStacked(name)
-    return  #"-stacked" < #name and string.sub(name, -#"-stacked") == "-stacked"
+    return #StackedSuffix < #name and name:sub(-#StackedSuffix) == StackedSuffix
 end
 
-local function BatchInsertInventory(player, items)
-    for _, item in ipairs(items) do
-        player.get_main_inventory().insert(item)
-    end
-end
-
-local function BatchRemoveInventory(player, items)
+local function BatchConvertStackedItems(player, items)
     for _, item in ipairs(items) do
         player.get_main_inventory().remove(item)
+        player.get_main_inventory().insert({name = item.name:sub(0, #item.name - #StackedSuffix), count = item.count * 4})
     end
 end
 
@@ -19,80 +16,71 @@ local function on_player_main_inventory_changed(event)
     local player = game.players[event.player_index]
     local inv = player.get_main_inventory().get_contents()
 
-    local itemsToRemove = {}
-    local itemsToInsert = {}
+    local itemsToConvert = {}
 
     for name, count in pairs(inv) do
         if IsStacked(name) then
-            table.insert(itemsToRemove, {name = name, count = count})
-            table.insert(itemsToInsert, {name = string.sub(name, 1, #name - #"-stacked"), count = count * 4})
+            table.insert(itemsToConvert, {name = name, count = count})
         end
     end
 
-    BatchRemoveInventory(player, itemsToRemove)
-    BatchInsertInventory(player, itemsToInsert)
+    BatchConvertStackedItems(player, itemsToConvert)
 
 end
 
 script.on_event(defines.events.on_player_main_inventory_changed, on_player_main_inventory_changed)
 
-local DirectionTable = {
-    ["input0"] =  { ConnectedPos = function (p) return {x = p.x + 0, y = p.y - 1} end, IsConnected = function (d) return d == "output0" or d == "input4" end }, --north
-    ["input2"] =  { ConnectedPos = function (p) return {x = p.x + 1, y = p.y + 0} end, IsConnected = function (d) return d == "output2" or d == "input6" end }, --east
-    ["input4"] =  { ConnectedPos = function (p) return {x = p.x + 0, y = p.y + 1} end, IsConnected = function (d) return d == "output4" or d == "input0" end }, --south
-    ["input6"] =  { ConnectedPos = function (p) return {x = p.x - 1, y = p.y + 0} end, IsConnected = function (d) return d == "output6" or d == "input2" end }, --west
-    ["output0"] = { ConnectedPos = function (p) return {x = p.x + 0, y = p.y + 1} end, IsConnected = function (d) return d == "output4" or d == "input0" end }, --south
-    ["output2"] = { ConnectedPos = function (p) return {x = p.x - 1, y = p.y + 0} end, IsConnected = function (d) return d == "output6" or d == "input2" end }, --west
-    ["output4"] = { ConnectedPos = function (p) return {x = p.x + 0, y = p.y - 1} end, IsConnected = function (d) return d == "output0" or d == "input4" end }, --north
-    ["output6"] = { ConnectedPos = function (p) return {x = p.x + 1, y = p.y + 0} end, IsConnected = function (d) return d == "output2" or d == "input6" end }, --east
+local vectorTable = {
+    [0] = {x = 0, y = -1},
+    [2] = {x = 1, y = 0},
+    [4] = {x = 0, y = 1},
+    [6] = {x = -1, y = 0}
 }
 
-local SpawnPointTable = {
-    ["input0"] =  {SpawnPoint = function (p) return {x = p.x + 0, y = p.y - 1} end},
-    ["input2"] =  {SpawnPoint = function (p) return {x = p.x + 0, y = p.y + 0} end},
-    ["input4"] =  {SpawnPoint = function (p) return {x = p.x + 0, y = p.y + 0} end},
-    ["input6"] =  {SpawnPoint = function (p) return {x = p.x - 1, y = p.y + 0} end},
-    ["output0"] = {SpawnPoint = function (p) return {x = p.x + 0, y = p.y + 0} end},
-    ["output2"] = {SpawnPoint = function (p) return {x = p.x - 1, y = p.y + 0} end},
-    ["output4"] = {SpawnPoint = function (p) return {x = p.x + 0, y = p.y - 1} end},
-    ["output6"] = {SpawnPoint = function (p) return {x = p.x + 0, y = p.y + 0} end},
-}
-
---- func desc
----@param entity LuaEntity
-local function TryToConnectLoaders(entity)
-    local directionData = DirectionTable[entity.loader_type .. entity.direction]
-    if not directionData then return end
-
-    local connected = entity.surface.find_entity(entity.name, directionData.ConnectedPos(entity.position))
-    if not connected then return end
-
-    if not directionData.IsConnected(connected.loader_type .. connected.direction) then return end
-
-    local stacker = entity.surface.create_entity{name = "stacker-entity", position = SpawnPointTable[entity.loader_type .. entity.direction].SpawnPoint(entity.position), direction = entity.direction, force = entity.force}
+local function CreateLoaderTable(loaderEntity)
+    local direction = (loaderEntity.direction + (loaderEntity.loader_type == "output" and 4 or 0)) % 8
+    return {
+        direction = direction,
+        normal = vectorTable[direction],
+        connectionPoint = {x = loaderEntity.position.x + vectorTable[direction].x, y = loaderEntity.position.y + vectorTable[direction].y},
+        reference = loaderEntity
+    }
 end
 
-local function TryToDisconnectLoaders(entity)
-    local directionData = DirectionTable[entity.loader_type .. entity.direction]
-    if not directionData then return end
+local function ConnectLoader(entity)
 
-    local connected = entity.surface.find_entity(entity.name, directionData.ConnectedPos(entity.position))
-    if not connected then return end
+    if not entity then return end
+    local loader = CreateLoaderTable(entity)
+    local findEntityResult = entity.surface.find_entity(entity.name, loader.connectionPoint)
 
-    if not directionData.IsConnected(connected.loader_type .. connected.direction) then return end
+    if not findEntityResult then return end
+    local loaderToConnect = CreateLoaderTable(findEntityResult)
 
-    local stacker = entity.surface.find_entity("stacker-entity", SpawnPointTable[entity.loader_type .. entity.direction].SpawnPoint(entity.position))
-    stacker.destroy()
+    if not (loader.normal.x + loaderToConnect.normal.x == 0 and loader.normal.y + loaderToConnect.normal.y == 0) then return end
+
+    local pos = (loader.direction == 0 or loader.direction == 6) and loaderToConnect.reference.position or loader.reference.position
+    entity.surface.create_entity{name = "stacker-entity", position = pos, direction = loader.direction, force = entity.force}
 end
 
-local function on_built_entity(event) TryToConnectLoaders(event.created_entity) end
-local function on_robot_built_entity(event) TryToConnectLoaders(event.created_entity) end
+local function DisconnectLoaders(entity)
+    
+    if not entity then return end
+    local loader = CreateLoaderTable(entity)
 
-local function on_player_mined_entity(event) TryToDisconnectLoaders(event.entity) end
-local function on_robot_mined_entity(event) TryToDisconnectLoaders(event.entity) end
+    local findEntityResult = entity.surface.find_entity("stacker-entity", loader.connectionPoint) or entity.surface.find_entity("stacker-entity", loader.reference.position)
 
+    if not findEntityResult then return end
+    findEntityResult.destroy()
+end
 
-script.on_event(defines.events.on_built_entity, on_built_entity, {{filter = "type", type = "loader-1x1"}})
-script.on_event(defines.events.on_player_mined_entity, on_player_mined_entity, {{filter = "type", type = "loader-1x1"}})
-script.on_event(defines.events.on_robot_built_entity, on_robot_built_entity, {{filter = "type", type = "loader-1x1"}})
-script.on_event(defines.events.on_robot_mined_entity, on_robot_mined_entity, {{filter = "type", type = "loader-1x1"}})
+local filter = {{filter = "type", type = "loader-1x1"}}
+
+script.on_event(defines.events.on_built_entity,         function (event) ConnectLoader(event.created_entity) end, filter)
+script.on_event(defines.events.on_robot_built_entity,   function (event) ConnectLoader(event.created_entity) end, filter)
+script.on_event(defines.events.script_raised_built,     function (event) ConnectLoader(event.entity)         end, filter)
+script.on_event(defines.events.script_raised_revive,    function (event) ConnectLoader(event.entity)         end, filter)
+
+script.on_event(defines.events.script_raised_destroy,   function (event) DisconnectLoaders(event.entity) end, filter)
+script.on_event(defines.events.on_player_mined_entity,  function (event) DisconnectLoaders(event.entity) end, filter)
+script.on_event(defines.events.on_robot_mined_entity,   function (event) DisconnectLoaders(event.entity) end, filter)
+script.on_event(defines.events.on_entity_died,          function (event) DisconnectLoaders(event.entity) end, filter)
