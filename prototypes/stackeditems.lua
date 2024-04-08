@@ -39,6 +39,9 @@ function StackedItemsAPI.MakeItemStackable(item)
             category = "stack-item",
             energy_required = 8,
             hidden = true,
+            hide_from_stats = true,
+            hide_from_player_crafting = true,
+            allow_decomposition = false,
             ingredients = {{item.name, 8}},
             result = item.name .. "-stacked",
             result_count = 2
@@ -49,6 +52,8 @@ function StackedItemsAPI.MakeItemStackable(item)
             category = "stack-item",
             energy_required = 8,
             hidden = true,
+            hide_from_player_crafting = true,
+            allow_decomposition = false,
             ingredients = {{item.name .. "-stacked", 2}},
             result = item.name,
             result_count = 8
