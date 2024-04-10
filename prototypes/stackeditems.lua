@@ -15,6 +15,7 @@ end
 function StackedItemsAPI.MakeItemStackable(item)
     if IsStacked(item.name) then return end
     if item.stack_size < 4 then return end
+    if item.icon == nil then return end
     data:extend({
         {
             type = "item",
